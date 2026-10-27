@@ -32,6 +32,17 @@
   @keyframes pulse{from{transform:scale(.7);opacity:.6}to{transform:scale(1.2);opacity:1}}
   .score{font-size:76px;line-height:1;color:#fff;text-shadow:0 0 40px var(--hot);margin:8px 0}
   .stars{font-size:22px;letter-spacing:.2em;color:var(--hot);text-shadow:0 0 12px var(--hot)}
+  #tuner{display:flex;align-items:center;justify-content:center;gap:22px;margin:10px 0 4px}
+  .note{font-size:56px;line-height:1;min-width:120px;color:#fff;text-shadow:0 0 24px currentColor;transition:color .15s}
+  .note small{display:block;font-size:12px;letter-spacing:.15em;text-transform:uppercase;opacity:.7;margin-top:4px}
+  .gauge{position:relative;width:220px;height:110px;overflow:hidden}
+  .gauge .arc{position:absolute;inset:0;border-radius:220px 220px 0 0;border:10px solid rgba(255,126,194,.22);border-bottom:0;box-sizing:border-box}
+  .gauge .zone{position:absolute;left:50%;bottom:-8px;width:0;height:0;border-left:30px solid transparent;border-right:30px solid transparent;border-bottom:120px solid rgba(93,255,156,.12);transform:translateX(-50%)}
+  .needle{position:absolute;left:50%;bottom:0;width:4px;height:96px;margin-left:-2px;border-radius:4px;background:#fff;transform-origin:bottom center;transition:transform .08s,background .15s;box-shadow:0 0 10px currentColor}
+  .cents{font-size:15px;min-width:110px;text-align:left;line-height:1.4}
+  .cents b{display:block;font-size:22px}
+  .ok{color:#5dff9c}.near{color:#ffd166}.off{color:#ff4d6d}.mute{color:rgba(255,214,234,.45)}
+  .target{display:inline-block;padding:4px 12px;border-radius:999px;background:rgba(255,126,194,.18);border:1px solid rgba(255,126,194,.4);font-size:14px;margin-left:8px;vertical-align:middle}
   #toast{position:fixed;top:24px;left:50%;transform:translateX(-50%);background:rgba(255,61,154,.92);color:#fff;padding:10px 18px;border-radius:999px;font-size:15px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9}
 </style>
 </head>
@@ -80,6 +91,13 @@ const LYRICS=[
  "Grab the mic, little human, show the flowers your flow",
  "One, two, bloom, bloom, let the whole bed glow"
 ];
+/* target note per line: a simple melody in a comfortable range; octaves are forgiven */
+const NOTES=["E4","E4","G4","A4","G4","E4","D4","E4","E4","G4","A4","B4","A4","G4","E4","D4"];
+const NOTE_NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+function noteFreq(n){const m=n.match(/^([A-G]#?)(\d)$/);const midi=NOTE_NAMES.indexOf(m[1])+(parseInt(m[2])+1)*12;return 440*Math.pow(2,(midi-69)/12);}
+function freqToNote(f){const m=Math.round(12*Math.log2(f/440))+69;return NOTE_NAMES[((m%12)+12)%12]+(Math.floor(m/12)-1);}
+function centsOff(f,target){let c=1200*Math.log2(f/target);c=((c%1200)+1800)%1200-600;return c;}
+const IN_TUNE=25,NEAR=60;
 const VERDICTS=[[85,"Slim Petal approves.","The whole bed is screaming. Roses fainted."],[70,"The roses are nodding.","Respect from the entire flower bed."],[50,"The tulips are concerned.","But entertained. Mostly concerned."],[30,"The daisies pretended to sleep.","Politely. With one eye open."],[0,"The garden filed a noise complaint.","Come back and sing to us properly."]];
 
 /* ---------------- THREE ---------------- */
@@ -199,10 +217,13 @@ function kick(t){const o=actx.createOscillator(),g=actx.createGain();o.frequency
 function snare(t){const s=actx.createBufferSource();s.buffer=noise;const f=actx.createBiquadFilter();f.type='bandpass';f.frequency.value=1900;f.Q.value=0.7;const g=actx.createGain();g.gain.setValueAtTime(0.65,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.22);s.connect(f);f.connect(g);g.connect(out());s.start(t);s.stop(t+0.25);blip(230,120,t,0.12,0.35);}
 function hat(t,open){const s=actx.createBufferSource();s.buffer=noise;const f=actx.createBiquadFilter();f.type='highpass';f.frequency.value=7500;const g=actx.createGain();g.gain.setValueAtTime(open?0.2:0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+(open?0.2:0.06));s.connect(f);f.connect(g);g.connect(out());s.start(t);s.stop(t+0.22);}
 function bass(t,freq,dur){const o=actx.createOscillator(),g=actx.createGain(),f=actx.createBiquadFilter();o.type='sawtooth';o.frequency.value=freq;f.type='lowpass';f.frequency.value=360;g.gain.setValueAtTime(0.0001,t);g.gain.linearRampToValueAtTime(0.55,t+0.02);g.gain.setValueAtTime(0.55,t+dur*0.6);g.gain.exponentialRampToValueAtTime(0.001,t+dur);o.connect(f);f.connect(g);g.connect(out());o.start(t);o.stop(t+dur+0.05);}
-function startBeat(){noise=noise||noiseBuffer();const t0=actx.currentTime+0.6;beatStart=t0;const roots=[55,55,65.41,73.42];
- for(let b=0;b<BARS;b++){const bt=t0+b*BAR;kick(bt);kick(bt+BEAT*0.75);kick(bt+BEAT*2);if(b%2)kick(bt+BEAT*3.5);snare(bt+BEAT);snare(bt+BEAT*3);
-  for(let e=0;e<8;e++)hat(bt+e*BEAT/2,e===3||e===7);const r=roots[b%4];bass(bt,r,BEAT*0.9);bass(bt+BEAT*0.75,r,BEAT*0.3);bass(bt+BEAT*2,r*1.5,BEAT*0.9);bass(bt+BEAT*3,r*1.335,BEAT*0.45);}
- kick(t0+BARS*BAR);snare(t0+BARS*BAR);}
+const LEAD=2;let lyricStart=0;
+function guide(t,f){const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(0.0001,t);g.gain.linearRampToValueAtTime(0.09,t+0.05);g.gain.setValueAtTime(0.09,t+BEAT*0.7);g.gain.exponentialRampToValueAtTime(0.0001,t+BEAT*0.95);o.connect(g);g.connect(out());o.start(t);o.stop(t+BEAT);}
+function startBeat(){noise=noise||noiseBuffer();const t0=actx.currentTime+0.4;beatStart=t0;lyricStart=t0+LEAD*BAR;const roots=[55,55,65.41,73.42];
+ for(let b=0;b<BARS+LEAD;b++){const bt=t0+b*BAR;kick(bt);kick(bt+BEAT*0.75);kick(bt+BEAT*2);if(b%2)kick(bt+BEAT*3.5);snare(bt+BEAT);snare(bt+BEAT*3);
+  for(let e=0;e<8;e++)hat(bt+e*BEAT/2,e===3||e===7);const r=roots[b%4];bass(bt,r,BEAT*0.9);bass(bt+BEAT*0.75,r,BEAT*0.3);bass(bt+BEAT*2,r*1.5,BEAT*0.9);bass(bt+BEAT*3,r*1.335,BEAT*0.45);
+  if(b>=LEAD)guide(bt,noteFreq(NOTES[b-LEAD]));else if(b===LEAD-1)guide(bt+BEAT*2,noteFreq(NOTES[0]));}
+ kick(t0+(BARS+LEAD)*BAR);snare(t0+(BARS+LEAD)*BAR);}
 
 /* ---------------- SPEECH ---------------- */
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null,voices=[];
@@ -237,9 +258,9 @@ function render(){
   const txt=$('#txt');const handle=t=>{if(!norm(t)){toast('Say or type something first.');return;}txt.value=t;judgeRiddle(t);};$('#speak').onclick=()=>listen($('#speak'),handle,()=>{});$('#send').onclick=()=>handle(txt.value);bindEnter(txt,handle);}
  else if(stage==='theirRiddle'){panel.innerHTML=`<p class="small">the flowers whisper, in unison</p><h1 class="big" id="q">${riddle.q}</h1><div class="row"><button id="speak">Answer by voice</button><input id="txt" type="text" placeholder="…or type the answer"><button id="send" class="ghost">Answer</button></div><div class="row" style="margin-top:10px"><button id="again" class="ghost">Hear it again</button><button id="hint" class="ghost">Hint</button></div><p class="small" id="fb">&nbsp;</p>`;
   const txt=$('#txt');const handle=(t,alts)=>{if(!norm(t)){toast('Say or type an answer first.');return;}txt.value=t;checkAnswer(t,alts||[t]);};$('#speak').onclick=()=>listen($('#speak'),handle,()=>{});$('#send').onclick=()=>handle(txt.value);bindEnter(txt,handle);$('#again').onclick=()=>say(riddle.q);$('#hint').onclick=()=>{$('#fb').textContent='Hint: '+riddle.hint;say(riddle.hint);};}
- else if(stage==='bloom'){panel.innerHTML=`<h1>Everything blooms.</h1><p>Stars are falling and the flowers have faces now. They want to rap. With you.</p><div class="row"><button id="go">Start the karaoke</button></div><p class="small">Boom-bap, 90 BPM, sixteen bars. Rap the glowing line along with them. The garden is listening and keeping score.</p>`;$('#go').onclick=startKaraoke;}
- else if(stage==='karaoke'){panel.innerHTML=`<p class="small" id="bar">here we go…</p><div id="lyric">&nbsp;</div><div id="lyricNext">&nbsp;</div><p class="small"><span class="dot"></span>the flowers are listening to you</p>`;}
- else if(stage==='score'){const r=finalScore();const v=VERDICTS.find(x=>r.score>=x[0]);panel.innerHTML=`<p class="small">the garden has judged you</p><div class="score">${r.score}<span style="font-size:28px;opacity:.7">/100</span></div><h1>${v[1]}</h1><p>${v[2]}</p><p class="small">voice on the beat ${Math.round(r.activity*100)}% · pitch control ${Math.round(r.pitchCtl*100)}% · timing ${Math.round(r.timing*100)}%</p><div class="row" style="margin-top:14px"><button id="rap">Rap it again</button><button id="again" class="ghost">New night, new riddle</button></div>`;
+ else if(stage==='bloom'){panel.innerHTML=`<h1>Everything blooms.</h1><p>Stars are falling and the flowers have faces now. They want to hear you sing. Sixteen lines, each on a target note, over a 90 BPM beat.</p><div class="row"><button id="go">Start the voice training</button></div><p class="small">Two bars of lead-in so you can read the first line. A soft guide tone plays each target note. The tuner shows your note live: green in tune, yellow close, red off.</p>`;$('#go').onclick=startKaraoke;}
+ else if(stage==='karaoke'){panel.innerHTML=`<p class="small" id="bar">get ready…</p><div id="lyric">&nbsp;</div><div id="lyricNext">&nbsp;</div><div id="tuner"><div class="note mute" id="tnote">–<small>sing</small></div><div class="gauge"><div class="arc"></div><div class="zone"></div><div class="needle mute" id="needle"></div></div><div class="cents" id="tcents"><b>·</b>target</div></div><p class="small"><span class="dot"></span>you sing, the flowers listen · green = in tune, yellow = close, red = off</p>`;}
+ else if(stage==='score'){const r=finalScore();const v=VERDICTS.find(x=>r.score>=x[0]);panel.innerHTML=`<p class="small">the garden has judged your singing</p><div class="score">${r.score}<span style="font-size:28px;opacity:.7">/100</span></div><h1>${v[1]}</h1><p>${v[2]}</p><p class="small">in tune ${Math.round(r.tune*100)}% · voice on the beat ${Math.round(r.activity*100)}% · timing ${Math.round(r.timing*100)}%</p><div class="row" style="margin-top:14px"><button id="rap">Sing it again</button><button id="again" class="ghost">New night, new riddle</button></div>`;
   $('#rap').onclick=startKaraoke;$('#again').onclick=()=>location.reload();say(`${r.score} out of 100. ${v[1]} ${v[2]}`);}
 }
 function wake(){if(stage!=='sing')return;stage='waking';stopHum();wakeChord();toast('The flowers heard you.');flowers.forEach(f=>{f.targetLean=0.28;f.wobble=0.3;});setTimeout(()=>setStage('yourRiddle'),1700);}
@@ -251,18 +272,23 @@ function checkAnswer(t,alts){const fb=$('#fb');const ok=alts.some(a=>matches(a,r
  else{wrong++;sadTone();const lines=['Nope. The daisies snorted.','Not that. Try again, clever one.','Closer? No. Not closer.'];const m=lines[Math.min(wrong-1,2)];fb.textContent=m+(wrong>=2?' Hint: '+riddle.hint:'');say(m+(wrong>=2?' '+riddle.hint:''));}}
 function bloom(){raining=true;rain.visible=true;flowers.forEach((f,i)=>{setTimeout(()=>{f.targetOpen=1;f.wobble=0.4;},i*90);setTimeout(()=>{f.face.visible=true;f.halo.material.opacity=0.55;},900+i*70);});setStage('bloom');}
 function startKaraoke(){K={lines:[]};lineIdx=-1;karaokeDone=false;flowers.forEach(f=>f.targetLean=0);setStage('karaoke');startBeat();}
-function karaokeTick(){const el=actx.currentTime-beatStart;const lyric=$('#lyric'),next=$('#lyricNext'),bar=$('#bar');if(!lyric)return;
- if(el<0){lyric.textContent='3… 2… 1…';return;}
+function lineAt(){return Math.floor((actx.currentTime-lyricStart)/BAR);}
+function karaokeTick(){const el=actx.currentTime-lyricStart;const lyric=$('#lyric'),next=$('#lyricNext'),bar=$('#bar');if(!lyric)return;
+ if(el<0){const beats=Math.ceil(-el/BEAT);if(lineIdx!==-1-beats){lineIdx=-1-beats;bar.textContent=beats>4?'get ready, breathe in…':`starting in ${beats}`;lyric.innerHTML=`${LYRICS[0]}<span class="target">sing ${NOTES[0]}</span>`;next.textContent='next: '+LYRICS[1]+' · '+NOTES[1];}return;}
  const li=Math.floor(el/BAR);
- if(li>=LYRICS.length){if(!karaokeDone){karaokeDone=true;speechSynthesis.cancel();setTimeout(()=>setStage('score'),600);}return;}
- if(li!==lineIdx){lineIdx=li;lyric.textContent=LYRICS[li];next.textContent=LYRICS[li+1]||'…and that is the show';bar.textContent=`bar ${li+1} / ${LYRICS.length}`;speechSynthesis.cancel();say(LYRICS[li],{rate:1.5,pitch:1.0,max:BAR*1000});flowers.forEach(f=>f.wobble=(li%2?1:-1)*0.25);}}
-function scoreTick(rms){if(!K||stage!=='karaoke')return;const el=actx.currentTime-beatStart;if(el<0)return;const li=Math.floor(el/BAR);if(li>=LYRICS.length)return;
- const L=K.lines[li]||(K.lines[li]={frames:0,voiced:0,onset:null,pitchHits:0,lastPitch:0});L.frames++;
- if(rms>0.02){L.voiced++;if(L.onset===null)L.onset=el-li*BAR;}
- if(pitch>0&&rms>0.02){if(L.lastPitch&&Math.abs(pitch-L.lastPitch)/L.lastPitch<0.12)L.pitchHits++;L.lastPitch=pitch;}}
-function finalScore(){if(!K)return{score:0,activity:0,pitchCtl:0,timing:0};const N=LYRICS.length;let act=0,pc=0,tm=0;
- for(let i=0;i<N;i++){const L=K.lines[i];if(!L||!L.frames)continue;const vr=L.voiced/L.frames;act+=Math.min(1,vr/0.5);if(L.voiced>5)pc+=Math.min(1,(L.pitchHits/L.voiced)/0.45);if(L.onset!==null)tm+=Math.max(0,1-Math.abs(L.onset-0.25)/1.3);}
- const activity=act/N,pitchCtl=pc/N,timing=tm/N;return{score:Math.max(0,Math.min(100,Math.round(45*activity+25*pitchCtl+30*timing))),activity,pitchCtl,timing};}
+ if(li>=LYRICS.length){if(!karaokeDone){karaokeDone=true;setTimeout(()=>setStage('score'),600);}return;}
+ if(li!==lineIdx){lineIdx=li;lyric.innerHTML=`${LYRICS[li]}<span class="target">sing ${NOTES[li]}</span>`;next.textContent=li+1<LYRICS.length?'next: '+LYRICS[li+1]+' · '+NOTES[li+1]:'last line, hold it';bar.textContent=`line ${li+1} / ${LYRICS.length}`;flowers.forEach(f=>f.wobble=(li%2?1:-1)*0.25);}}
+function tunerTick(rms){const n=$('#tnote'),c=$('#tcents'),nd=$('#needle');if(!n)return;const li=Math.max(0,Math.min(LYRICS.length-1,lineAt()));const target=noteFreq(NOTES[li]);
+ if(!(pitch>0&&rms>0.02)){n.className='note mute';n.innerHTML='–<small>sing</small>';c.innerHTML='<b>·</b>target '+NOTES[li];nd.style.transform='rotate(0deg)';nd.className='needle mute';return;}
+ const cents=centsOff(pitchSmooth,target),a=Math.abs(cents),cls=a<=IN_TUNE?'ok':a<=NEAR?'near':'off';
+ n.className='note '+cls;n.innerHTML=freqToNote(pitchSmooth)+`<small>${cls==='ok'?'in tune':cls==='near'?(cents<0?'a bit flat':'a bit sharp'):(cents<0?'too low':'too high')}</small>`;
+ c.innerHTML=`<b>${cents>0?'+':''}${Math.round(cents)}¢</b>target ${NOTES[li]}`;nd.style.transform=`rotate(${Math.max(-50,Math.min(50,cents*0.5))}deg)`;nd.className='needle '+cls;}
+function scoreTick(rms){if(!K||stage!=='karaoke')return;const el=actx.currentTime-lyricStart;if(el<0)return;const li=Math.floor(el/BAR);if(li>=LYRICS.length)return;
+ const L=K.lines[li]||(K.lines[li]={frames:0,voiced:0,onset:null,inTune:0,near:0});L.frames++;
+ if(rms>0.02){L.voiced++;if(L.onset===null)L.onset=el-li*BAR;if(pitch>0){const a=Math.abs(centsOff(pitchSmooth,noteFreq(NOTES[li])));if(a<=IN_TUNE)L.inTune++;else if(a<=NEAR)L.near++;}}}
+function finalScore(){if(!K)return{score:0,activity:0,tune:0,timing:0};const N=LYRICS.length;let act=0,tn=0,tm=0;
+ for(let i=0;i<N;i++){const L=K.lines[i];if(!L||!L.frames)continue;act+=Math.min(1,(L.voiced/L.frames)/0.5);if(L.voiced>5)tn+=Math.min(1,(L.inTune+L.near*0.4)/L.voiced/0.7);if(L.onset!==null)tm+=Math.max(0,1-Math.abs(L.onset-0.25)/1.3);}
+ const activity=act/N,tune=tn/N,timing=tm/N;return{score:Math.max(0,Math.min(100,Math.round(55*tune+30*activity+15*timing))),activity,tune,timing};}
 
 /* ---------------- LOOP ---------------- */
 const clock=new THREE.Clock();let t=0;
@@ -272,7 +298,7 @@ function audioTick(){if(!analyser)return;analyser.getFloatTimeDomainData(timeBuf
  if(pitch>0)pitchSmooth=pitchSmooth?pitchSmooth+(pitch-pitchSmooth)*0.3:pitch;
  const voiced=rms>0.02&&pitch>0;
  if(stage==='sing'){if(voiced){humFollow(quantize(pitchSmooth),Math.min(0.4,0.12+level*0.5));voicedTime+=1/60;const n=Math.min(5,Math.floor(voicedTime/0.5));const prog=$('#prog');if(prog)prog.textContent=('✦ '.repeat(n)+'✧ '.repeat(5-n)).trim();if(voicedTime>=2.5)wake();}else humFollow(pitchSmooth||220,0);}
- if(stage==='karaoke'){scoreTick(rms);karaokeTick();}
+ if(stage==='karaoke'){scoreTick(rms);karaokeTick();tunerTick(rms);}
  return rms;}
 function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),0.05);t+=dt;audioTick();
  const pos=starGeo.attributes.position.array;for(let i=0;i<STAR_N;i++){pos[i*3]+=Math.sin(t*0.3+sphase[i])*0.005;pos[i*3+1]+=Math.cos(t*0.25+sphase[i])*0.003;}starGeo.attributes.position.needsUpdate=true;
