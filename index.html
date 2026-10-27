@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pink Riddle Garden</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{--blush:#ffd6ea;--pink:#ff7ec2;--hot:#ff3d9a;--mag:#d81b7a;--deep:#5a1545;--night:#2b0b24}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--night);font-family:"Arial Rounded MT Bold","SF Pro Rounded",ui-rounded,"Nunito","Quicksand",system-ui,sans-serif;color:var(--blush)}
+  canvas{display:block}
+  #ui{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between}
+  .top{padding:22px 28px;display:flex;justify-content:space-between;align-items:flex-start}
+  .brand{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--pink);opacity:.9}
+  .brand b{display:block;font-size:22px;letter-spacing:0;text-transform:none;color:#fff;text-shadow:0 0 18px rgba(255,126,194,.9);margin-top:2px}
+  #meter{width:170px;height:9px;border-radius:999px;background:rgba(255,126,194,.18);overflow:hidden;margin-top:8px}
+  #meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--pink),var(--hot));border-radius:999px;box-shadow:0 0 12px var(--hot);transition:width .08s}
+  .panel{pointer-events:auto;margin:0 auto 34px;max-width:720px;width:calc(100% - 48px);background:rgba(43,11,36,.72);backdrop-filter:blur(14px);border:1px solid rgba(255,126,194,.35);border-radius:28px;padding:22px 26px;box-shadow:0 10px 60px rgba(255,61,154,.25),inset 0 0 40px rgba(255,126,194,.08);text-align:center}
+  .panel h1{margin:0 0 6px;font-size:30px;color:#fff;text-shadow:0 0 24px rgba(255,126,194,.9)}
+  .panel p{margin:6px 0 14px;font-size:17px;line-height:1.45;color:var(--blush)}
+  .panel p.small{font-size:13px;opacity:.75;margin:8px 0 0}
+  .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;align-items:center}
+  button{font:inherit;font-size:17px;padding:13px 24px;border-radius:999px;border:0;cursor:pointer;background:linear-gradient(135deg,var(--hot),var(--mag));color:#fff;box-shadow:0 8px 28px rgba(255,61,154,.45);transition:transform .12s,box-shadow .12s}
+  button:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 12px 36px rgba(255,61,154,.6)}
+  button.ghost{background:rgba(255,126,194,.14);color:var(--blush);border:1px solid rgba(255,126,194,.45);box-shadow:none}
+  button:disabled{opacity:.45;cursor:default;transform:none}
+  input[type=text]{font:inherit;font-size:16px;padding:12px 18px;border-radius:999px;border:1px solid rgba(255,126,194,.5);background:rgba(255,214,234,.1);color:#fff;min-width:240px;outline:none}
+  input::placeholder{color:rgba(255,214,234,.55)}
+  .big{font-size:26px;color:#fff;text-shadow:0 0 20px rgba(255,126,194,.9)}
+  #lyric{font-size:30px;min-height:44px;color:#fff;text-shadow:0 0 26px var(--hot),0 0 6px #fff;margin:6px 0}
+  #lyricNext{font-size:17px;opacity:.5;min-height:24px}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--hot);box-shadow:0 0 14px var(--hot);animation:pulse .8s infinite alternate;vertical-align:middle;margin-right:8px}
+  @keyframes pulse{from{transform:scale(.7);opacity:.6}to{transform:scale(1.2);opacity:1}}
+  .score{font-size:76px;line-height:1;color:#fff;text-shadow:0 0 40px var(--hot);margin:8px 0}
+  .stars{font-size:22px;letter-spacing:.2em;color:var(--hot);text-shadow:0 0 12px var(--hot)}
+  #toast{position:fixed;top:24px;left:50%;transform:translateX(-50%);background:rgba(255,61,154,.92);color:#fff;padding:10px 18px;border-radius:999px;font-size:15px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9}
+</style>
+</head>
+<body>
+<div id="ui">
+  <div class="top">
+    <div class="brand">night garden · riddles · karaoke<b>Pink Riddle Garden</b><div id="meter"><i></i></div></div>
+    <div class="brand" id="stageTag">asleep</div>
+  </div>
+  <div class="panel" id="panel"></div>
+</div>
+<div id="toast"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const panel=$('#panel'), meterBar=$('#meter i'), stageTag=$('#stageTag');
+function toast(t){const el=$('#toast');el.textContent=t;el.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>el.style.opacity=0,2400);}
+
+/* ---------------- CONTENT ---------------- */
+const RIDDLES=[
+ {q:"I am always in front of you, but you can never see me. What am I?",a:["future","the future","tomorrow"],hint:"It has not happened yet.",yes:"The future. You are frighteningly clever."},
+ {q:"What has a bottom at the top?",a:["legs","leg","your legs","a leg"],hint:"You are standing on the answer.",yes:"Legs! The tulips are blushing."},
+ {q:"The more I dry, the wetter I get. What am I?",a:["towel","a towel"],hint:"Bathroom. Fluffy. Suspicious.",yes:"A towel. Soggy genius."},
+ {q:"I have hundreds of keys but cannot open a single door. What am I?",a:["piano","keyboard","a piano"],hint:"It sits in the corner and judges your singing.",yes:"A piano. Play us something later."},
+ {q:"I have a neck but no head, and I still wear a cap. What am I?",a:["bottle","a bottle"],hint:"Pop. Fizz.",yes:"A bottle. Cheers, darling."},
+ {q:"What goes up every year but never, ever comes down?",a:["age","your age","my age"],hint:"We do not discuss it at parties.",yes:"Your age. Rude of us, correct of you."},
+ {q:"I am tall when I am young and short when I am old. What am I?",a:["candle","a candle"],hint:"It cries wax.",yes:"A candle. Blow us a kiss."},
+ {q:"What can you break without ever touching it?",a:["promise","a promise","silence","heart","a heart","the silence","a record","record"],hint:"Politicians do it every week.",yes:"A promise. Never break one to a flower."}
+];
+/* Original lyrics, written for this game. No real artist's lines. */
+const LYRICS=[
+ "Yo, the petals pop open, the garden's awoken",
+ "Pink to the roots, every rule that we've broken",
+ "You came with a riddle, we rattled right back",
+ "Now the stars doing cartwheels, falling off track",
+ "Slim Petal on the beat with the tulips in tow",
+ "Hot pink, blush pink, every pink that we know",
+ "Spit it like pollen, we making you sneeze",
+ "Stems in the breeze, we do backflips with bees",
+ "Riddle me this: what grows when you guess it?",
+ "A garden that giggles, go ahead and confess it",
+ "Dirt in the mic, got the roots on the snare",
+ "Starlight drip, magenta in the air",
+ "You sang us awake, now we're never gonna sleep",
+ "Stacking rhymes to the sky, ten thousand feet deep",
+ "Grab the mic, little human, show the flowers your flow",
+ "One, two, bloom, bloom, let the whole bed glow"
+];
+const VERDICTS=[[85,"Slim Petal approves.","The whole bed is screaming. Roses fainted."],[70,"The roses are nodding.","Respect from the entire flower bed."],[50,"The tulips are concerned.","But entertained. Mostly concerned."],[30,"The daisies pretended to sleep.","Politely. With one eye open."],[0,"The garden filed a noise complaint.","Come back and sing to us properly."]];
+
+/* ---------------- THREE ---------------- */
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x2b0b24);
+scene.fog=new THREE.FogExp2(0x2b0b24,0.04);
+const camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,0.1,120);
+camera.position.set(0,2.4,7.5);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;
+document.body.prepend(renderer.domElement);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+
+scene.add(new THREE.HemisphereLight(0xffb3d9,0x3a0d2e,0.9));
+const key=new THREE.PointLight(0xff7ec2,1.8,40);key.position.set(3,6,4);scene.add(key);
+const fill=new THREE.PointLight(0xff3d9a,1.0,30);fill.position.set(-5,3,-2);scene.add(fill);
+
+function glowTexture(){const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');const grd=g.createRadialGradient(32,32,0,32,32,32);grd.addColorStop(0,'rgba(255,255,255,1)');grd.addColorStop(0.3,'rgba(255,200,230,0.8)');grd.addColorStop(1,'rgba(255,126,194,0)');g.fillStyle=grd;g.fillRect(0,0,64,64);return new THREE.CanvasTexture(c);}
+const starTex=glowTexture();
+
+const moon=new THREE.Mesh(new THREE.SphereGeometry(1.1,32,32),new THREE.MeshBasicMaterial({color:0xffd6ea}));moon.position.set(-9,8,-18);scene.add(moon);
+const moonGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:starTex,color:0xff9ed2,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));moonGlow.scale.set(9,9,1);moonGlow.position.copy(moon.position);scene.add(moonGlow);
+
+const ground=new THREE.Mesh(new THREE.CircleGeometry(40,48),new THREE.MeshStandardMaterial({color:0x5a1545,roughness:1}));ground.rotation.x=-Math.PI/2;scene.add(ground);
+const bed=new THREE.Mesh(new THREE.CylinderGeometry(5.4,6,0.35,48),new THREE.MeshStandardMaterial({color:0x7a1f5a,roughness:0.95}));bed.position.y=0.17;scene.add(bed);
+
+/* drifting stars */
+const STAR_N=800,starGeo=new THREE.BufferGeometry(),sp=new Float32Array(STAR_N*3),sphase=new Float32Array(STAR_N);
+for(let i=0;i<STAR_N;i++){sp[i*3]=(Math.random()-0.5)*70;sp[i*3+1]=Math.random()*24+0.8;sp[i*3+2]=(Math.random()-0.5)*50-6;sphase[i]=Math.random()*Math.PI*2;}
+starGeo.setAttribute('position',new THREE.BufferAttribute(sp,3));
+const starMat=new THREE.PointsMaterial({size:0.35,map:starTex,color:0xffc2e6,transparent:true,opacity:0.95,depthWrite:false,blending:THREE.AdditiveBlending});
+scene.add(new THREE.Points(starGeo,starMat));
+/* raining stars */
+const RAIN_N=600,rainGeo=new THREE.BufferGeometry(),rp=new Float32Array(RAIN_N*3),rv=new Float32Array(RAIN_N);
+for(let i=0;i<RAIN_N;i++){rp[i*3]=(Math.random()-0.5)*18;rp[i*3+1]=10+Math.random()*16;rp[i*3+2]=(Math.random()-0.5)*12;rv[i]=2.5+Math.random()*4;}
+rainGeo.setAttribute('position',new THREE.BufferAttribute(rp,3));
+const rain=new THREE.Points(rainGeo,new THREE.PointsMaterial({size:0.6,map:starTex,color:0xffffff,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
+rain.visible=false;scene.add(rain);let raining=false;
+
+/* flowers */
+function faceTexture(open){const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');
+ g.fillStyle='#7a1048';g.beginPath();g.ellipse(44,50,8,11,0,0,Math.PI*2);g.fill();g.beginPath();g.ellipse(84,50,8,11,0,0,Math.PI*2);g.fill();
+ g.fillStyle='#fff';g.beginPath();g.arc(47,46,3,0,Math.PI*2);g.fill();g.beginPath();g.arc(87,46,3,0,Math.PI*2);g.fill();
+ g.fillStyle='rgba(255,80,160,0.6)';g.beginPath();g.arc(28,72,9,0,Math.PI*2);g.fill();g.beginPath();g.arc(100,72,9,0,Math.PI*2);g.fill();
+ g.strokeStyle='#7a1048';g.lineWidth=6;g.lineCap='round';
+ if(open){g.fillStyle='#7a1048';g.beginPath();g.ellipse(64,86,12,15,0,0,Math.PI*2);g.fill();g.fillStyle='#ff6fb5';g.beginPath();g.ellipse(64,94,7,5,0,0,Math.PI*2);g.fill();}
+ else{g.beginPath();g.arc(64,70,18,0.15*Math.PI,0.85*Math.PI);g.stroke();}
+ return new THREE.CanvasTexture(c);}
+const faceSmile=faceTexture(false),faceOpen=faceTexture(true);
+const PETAL_COLORS=[0xff6fb5,0xff8fcf,0xff3d9a,0xffb3d9,0xe91e8c,0xff5aa8,0xf48fb1,0xff2d8e];
+const flowers=[];
+function makeFlower(x,z,s){
+ const g=new THREE.Group();g.position.set(x,0.3,z);g.scale.setScalar(s);
+ const h=1.3+Math.random()*0.6;
+ const stem=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.06,h,10),new THREE.MeshStandardMaterial({color:0xc2457f,roughness:0.7}));stem.position.y=h/2;g.add(stem);
+ for(let i=0;i<2;i++){const leaf=new THREE.Mesh(new THREE.SphereGeometry(0.17,12,8),new THREE.MeshStandardMaterial({color:0xd94f94,roughness:0.8}));leaf.scale.set(1,0.35,0.5);leaf.position.set(i?0.18:-0.18,h*0.4+i*0.25,0);leaf.rotation.z=i?-0.6:0.6;g.add(leaf);}
+ const head=new THREE.Group();head.position.y=h;g.add(head);
+ const color=PETAL_COLORS[Math.floor(Math.random()*PETAL_COLORS.length)];
+ const petalMat=new THREE.MeshStandardMaterial({color,roughness:0.5,emissive:color,emissiveIntensity:0.15});
+ const hinges=[],N=6+Math.floor(Math.random()*3);
+ for(let i=0;i<N;i++){const pivot=new THREE.Group();pivot.rotation.y=i/N*Math.PI*2;const hinge=new THREE.Group();const petal=new THREE.Mesh(new THREE.SphereGeometry(0.2,14,10),petalMat);petal.scale.set(0.55,1.05,0.22);petal.position.set(0,0.2,0.04);hinge.add(petal);pivot.add(hinge);head.add(pivot);hinges.push(hinge);}
+ const center=new THREE.Mesh(new THREE.SphereGeometry(0.13,16,12),new THREE.MeshStandardMaterial({color:0xffd1e8,emissive:0xff7ec2,emissiveIntensity:0.6}));center.position.y=0.05;head.add(center);
+ const face=new THREE.Sprite(new THREE.SpriteMaterial({map:faceSmile,transparent:true,depthWrite:false}));face.scale.set(0.5,0.5,1);face.position.set(0,0.1,0.28);face.visible=false;head.add(face);
+ const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:starTex,color,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,opacity:0.0}));halo.scale.set(1.6,1.6,1);head.add(halo);
+ scene.add(g);
+ flowers.push({g,head,hinges,face,halo,h,open:0,targetOpen:0,phase:Math.random()*Math.PI*2,wobble:0,lean:0,targetLean:0});
+}
+for(let i=0;i<13;i++){const x=-4.4+i*0.73+(Math.random()-0.5)*0.5;const z=(i%2?0.9:-0.7)+(Math.random()-0.5)*1.2;makeFlower(x,z,0.85+Math.random()*0.4);}
+
+/* two voxel corgis (the breed from sobachya-zhizn): one pink, one orange */
+const dogs=[];
+function makeDog(FUR,FUR2,CREAM,x,z,facing){
+ const dog=new THREE.Group();
+ const box=(w,h,d,color,px,py,pz,parent)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color}));m.position.set(px,py,pz);(parent||dog).add(m);return m;};
+ box(1.6,1.3,3.2,FUR,0,1.15,0);box(1.62,0.55,3.22,CREAM,0,0.72,0);
+ const head=new THREE.Group();head.position.set(0,1.9,1.9);dog.add(head);
+ box(1.5,1.25,1.35,FUR,0,0,0,head);box(0.7,0.55,0.6,CREAM,0,-0.28,0.9,head);box(0.28,0.2,0.2,0x241505,0,-0.16,1.22,head);
+ box(0.2,0.22,0.1,0x1c1208,-0.38,0.18,0.69,head);box(0.2,0.22,0.1,0x1c1208,0.38,0.18,0.69,head);
+ const ears=[];[-0.5,0.5].forEach(dx=>{const ear=new THREE.Mesh(new THREE.ConeGeometry(0.34,0.9,4),new THREE.MeshLambertMaterial({color:FUR2}));ear.position.set(dx,0.95,-0.1);head.add(ear);ears.push(ear);});
+ const legs=[];[[-0.55,1.15],[0.55,1.15],[-0.55,-1.15],[0.55,-1.15]].forEach(p=>{const hip=new THREE.Group();hip.position.set(p[0],0.62,p[1]);dog.add(hip);box(0.42,0.75,0.45,FUR2,0,-0.35,0,hip);legs.push(hip);});
+ const tail=new THREE.Group();tail.position.set(0,1.6,-1.6);dog.add(tail);box(0.4,0.4,0.9,CREAM,0,0.15,-0.35,tail);
+ dog.scale.setScalar(0.42);dog.position.set(x,0.35,z);dog.rotation.y=facing;scene.add(dog);
+ dogs.push({g:dog,head,ears,legs,tail,baseY:0.35,phase:Math.random()*6,x,z,facing});
+}
+makeDog(0xff5aa8,0xd81b7a,0xffd6ea,-6.0,1.6,0.55);   // pink corgi, left
+makeDog(0xe8862e,0xc2651a,0xf3e2c3,6.0,1.6,-0.55);   // orange corgi, right
+
+/* ---------------- AUDIO ---------------- */
+let actx=null,analyser=null,timeBuf=null,level=0,pitch=-1,pitchSmooth=0,voicedTime=0,hum=null,master=null,noise=null,acFrame=0;
+async function startMic(){
+ actx=actx||new (window.AudioContext||window.webkitAudioContext)();await actx.resume();
+ const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+ const src=actx.createMediaStreamSource(stream);analyser=actx.createAnalyser();analyser.fftSize=2048;analyser.smoothingTimeConstant=0.5;src.connect(analyser);timeBuf=new Float32Array(analyser.fftSize);
+}
+function autoCorrelate(buf0,sr){let SIZE=buf0.length,rms=0;for(let i=0;i<SIZE;i++)rms+=buf0[i]*buf0[i];rms=Math.sqrt(rms/SIZE);if(rms<0.012)return -1;
+ let r1=0,r2=SIZE-1,th=0.2;for(let i=0;i<SIZE/2;i++)if(Math.abs(buf0[i])<th){r1=i;break;}for(let i=1;i<SIZE/2;i++)if(Math.abs(buf0[SIZE-i])<th){r2=SIZE-i;break;}
+ const buf=buf0.slice(r1,r2);SIZE=buf.length;if(SIZE<64)return -1;const c=new Float32Array(SIZE);for(let i=0;i<SIZE;i++){let s=0;for(let j=0;j<SIZE-i;j++)s+=buf[j]*buf[j+i];c[i]=s;}
+ let d=0;while(d<SIZE-1&&c[d]>c[d+1])d++;let mv=-1,mp=-1;for(let i=d;i<SIZE;i++)if(c[i]>mv){mv=c[i];mp=i;}if(mp<=0)return -1;let T0=mp;
+ const x1=c[T0-1]||0,x2=c[T0],x3=c[T0+1]||0,a=(x1+x3-2*x2)/2,b=(x3-x1)/2;if(a)T0=T0-b/(2*a);return sr/T0;}
+function quantize(f){return 440*Math.pow(2,Math.round(12*Math.log2(f/440))/12);}
+function out(){if(!master){master=actx.createGain();master.gain.value=0.85;const c=actx.createDynamicsCompressor();master.connect(c);c.connect(actx.destination);}return master;}
+function startHum(){if(hum)return;const gain=actx.createGain();gain.gain.value=0;gain.connect(out());
+ const oscs=[[1,'sine',0.5],[0.5,'triangle',0.22],[1.5,'sine',0.14],[2,'sine',0.07]].map(([r,type,g])=>{const o=actx.createOscillator();o.type=type;const og=actx.createGain();og.gain.value=g;o.connect(og);og.connect(gain);o.frequency.value=220*r;o.start();return{o,r};});hum={gain,oscs};}
+function humFollow(f,vol){if(!hum)return;const now=actx.currentTime;hum.oscs.forEach(({o,r})=>o.frequency.setTargetAtTime(Math.max(50,Math.min(2000,f*r)),now,0.07));hum.gain.gain.setTargetAtTime(vol,now,0.09);}
+function stopHum(){if(!hum)return;const h=hum;hum=null;h.gain.gain.setTargetAtTime(0,actx.currentTime,0.25);setTimeout(()=>h.oscs.forEach(x=>{try{x.o.stop()}catch(e){}}),900);}
+function blip(f0,f1,t,dur,vol){const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+dur);g.gain.setValueAtTime(0.0001,t);g.gain.linearRampToValueAtTime(vol,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g);g.connect(out());o.start(t);o.stop(t+dur+0.02);}
+function giggle(){if(!actx)return;const now=actx.currentTime;for(let i=0;i<8;i++){const f=600+Math.random()*700;blip(f,f*1.45,now+i*0.09,0.09,0.2);}flowers.forEach(f=>f.wobble=(Math.random()>0.5?1:-1)*0.5);}
+function sadTone(){if(!actx)return;const now=actx.currentTime;blip(420,300,now,0.35,0.18);blip(300,200,now+0.35,0.5,0.18);flowers.forEach(f=>f.wobble=0.15);}
+function sparkle(){if(!actx)return;const now=actx.currentTime;[523,659,784,1047,1319,1568,2093].forEach((f,i)=>blip(f,f*1.01,now+i*0.08,0.6,0.16));}
+function wakeChord(){if(!actx)return;const now=actx.currentTime;[220,277,330,440,554].forEach((f,i)=>blip(f,f,now+i*0.05,1.6,0.12));}
+
+/* beat (boom-bap, 90 BPM, 16 bars) */
+const BPM=90,BEAT=60/BPM,BAR=BEAT*4,BARS=LYRICS.length;let beatStart=0;
+function noiseBuffer(){const b=actx.createBuffer(1,actx.sampleRate*0.5,actx.sampleRate);const d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;return b;}
+function kick(t){const o=actx.createOscillator(),g=actx.createGain();o.frequency.setValueAtTime(170,t);o.frequency.exponentialRampToValueAtTime(42,t+0.13);g.gain.setValueAtTime(1.0,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.38);o.connect(g);g.connect(out());o.start(t);o.stop(t+0.4);}
+function snare(t){const s=actx.createBufferSource();s.buffer=noise;const f=actx.createBiquadFilter();f.type='bandpass';f.frequency.value=1900;f.Q.value=0.7;const g=actx.createGain();g.gain.setValueAtTime(0.65,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.22);s.connect(f);f.connect(g);g.connect(out());s.start(t);s.stop(t+0.25);blip(230,120,t,0.12,0.35);}
+function hat(t,open){const s=actx.createBufferSource();s.buffer=noise;const f=actx.createBiquadFilter();f.type='highpass';f.frequency.value=7500;const g=actx.createGain();g.gain.setValueAtTime(open?0.2:0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+(open?0.2:0.06));s.connect(f);f.connect(g);g.connect(out());s.start(t);s.stop(t+0.22);}
+function bass(t,freq,dur){const o=actx.createOscillator(),g=actx.createGain(),f=actx.createBiquadFilter();o.type='sawtooth';o.frequency.value=freq;f.type='lowpass';f.frequency.value=360;g.gain.setValueAtTime(0.0001,t);g.gain.linearRampToValueAtTime(0.55,t+0.02);g.gain.setValueAtTime(0.55,t+dur*0.6);g.gain.exponentialRampToValueAtTime(0.001,t+dur);o.connect(f);f.connect(g);g.connect(out());o.start(t);o.stop(t+dur+0.05);}
+function startBeat(){noise=noise||noiseBuffer();const t0=actx.currentTime+0.6;beatStart=t0;const roots=[55,55,65.41,73.42];
+ for(let b=0;b<BARS;b++){const bt=t0+b*BAR;kick(bt);kick(bt+BEAT*0.75);kick(bt+BEAT*2);if(b%2)kick(bt+BEAT*3.5);snare(bt+BEAT);snare(bt+BEAT*3);
+  for(let e=0;e<8;e++)hat(bt+e*BEAT/2,e===3||e===7);const r=roots[b%4];bass(bt,r,BEAT*0.9);bass(bt+BEAT*0.75,r,BEAT*0.3);bass(bt+BEAT*2,r*1.5,BEAT*0.9);bass(bt+BEAT*3,r*1.335,BEAT*0.45);}
+ kick(t0+BARS*BAR);snare(t0+BARS*BAR);}
+
+/* ---------------- SPEECH ---------------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null,voices=[];
+function loadVoices(){voices=speechSynthesis.getVoices();}
+if('speechSynthesis' in window){loadVoices();speechSynthesis.onvoiceschanged=loadVoices;}
+function pickVoice(){return voices.find(v=>/Samantha|Google US English|Ava|Allison|Karen/i.test(v.name)&&/^en/.test(v.lang))||voices.find(v=>/^en/.test(v.lang))||null;}
+function say(text,o={}){return new Promise(res=>{if(!('speechSynthesis' in window)){res();return;}const u=new SpeechSynthesisUtterance(text);u.rate=o.rate||1;u.pitch=o.pitch||1.15;const v=pickVoice();if(v)u.voice=v;u.onend=res;u.onerror=res;speechSynthesis.speak(u);setTimeout(res,o.max||12000);});}
+function listen(btn,onText,onFail){
+ if(!SR){toast('No speech recognition here. Type it instead.');onFail&&onFail();return;}
+ try{rec&&rec.abort();}catch(e){}
+ rec=new SR();rec.lang='en-US';rec.interimResults=false;rec.maxAlternatives=3;let done=false;const old=btn.innerHTML;btn.innerHTML='<span class="dot"></span>Listening…';btn.disabled=true;
+ const finish=()=>{btn.innerHTML=old;btn.disabled=false;};
+ rec.onresult=e=>{done=true;finish();onText(e.results[0][0].transcript,Array.from(e.results[0]).map(a=>a.transcript));};
+ rec.onerror=e=>{if(!done){done=true;finish();toast(e.error==='not-allowed'?'Mic blocked for speech. Type instead.':'Heard nothing. Try again or type.');onFail&&onFail(e.error);}};
+ rec.onend=()=>{if(!done){done=true;finish();onFail&&onFail('silence');}};
+ rec.start();
+}
+function norm(s){return (s||'').toLowerCase().replace(/[^a-z\s]/g,' ').replace(/\s+/g,' ').trim();}
+function lev(a,b){const m=a.length,n=b.length;if(!m)return n;if(!n)return m;let prev=Array.from({length:n+1},(_,i)=>i);for(let i=1;i<=m;i++){const cur=[i];for(let j=1;j<=n;j++)cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));prev=cur;}return prev[n];}
+function matches(ans,accepted){const n=norm(ans);if(!n)return false;const words=n.split(' ');return accepted.some(acc=>{const a=norm(acc);if(a.length>=3&&(' '+n+' ').includes(' '+a+' '))return true;if(n.includes(a)&&a.length>=5)return true;return words.some(w=>w.length>=4&&lev(w,a)<=Math.max(1,Math.floor(a.length/4)));});}
+function likesRiddle(t){const n=norm(t);const w=n.split(' ').filter(Boolean);return /\?/.test(t)||w.length>6||/^(what|why|how|who|where|which|when|i am|im|i have|ive|riddle|guess)/.test(n);}
+
+/* ---------------- STAGES ---------------- */
+let stage='intro',riddle=null,usedRiddles=[],wrong=0,K=null,lineIdx=-1,karaokeDone=false;
+function setStage(s){stage=s;stageTag.textContent={intro:'asleep',sing:'listening',yourRiddle:'awake',theirRiddle:'riddling',bloom:'blooming',karaoke:'rapping',score:'judged'}[s]||s;render();}
+function bindEnter(input,fn){input.addEventListener('keydown',e=>{if(e.key==='Enter'){fn(input.value);}});}
+function render(){
+ if(stage==='intro'){panel.innerHTML=`<h1>The garden is asleep.</h1><p>Thirteen flowers, two corgis, a slow pink night. The flowers only wake for a voice: sing to them, trade riddles, and if you earn it, they rap with you.</p><div class="row"><button id="b1">Sing to the flowers</button></div><p class="small">Chrome will ask for your microphone. Say yes, then hold any note. Desktop Chrome, sound on.</p>`;
+  $('#b1').onclick=async()=>{try{await startMic();startHum();voicedTime=0;setStage('sing');}catch(e){toast('No microphone: '+(e.message||e));}};}
+ else if(stage==='sing'){panel.innerHTML=`<h1>Sing. Anything.</h1><p>Hold a note. The flowers hum it back in pink.</p><div class="stars" id="prog">✧ ✧ ✧ ✧ ✧</div><div class="row" style="margin-top:12px"><button id="skip" class="ghost">I am shy, wake them anyway</button></div>`;$('#skip').onclick=wake;}
+ else if(stage==='yourRiddle'){panel.innerHTML=`<h1>They are awake. Tell them a riddle.</h1><p>Out loud. They like questions and anything with a twist in it.</p><div class="row"><button id="speak">Speak your riddle</button><input id="txt" type="text" placeholder="…or type it here"><button id="send" class="ghost">Tell</button></div><p class="small" id="fb">&nbsp;</p>`;
+  const txt=$('#txt');const handle=t=>{if(!norm(t)){toast('Say or type something first.');return;}txt.value=t;judgeRiddle(t);};$('#speak').onclick=()=>listen($('#speak'),handle,()=>{});$('#send').onclick=()=>handle(txt.value);bindEnter(txt,handle);}
+ else if(stage==='theirRiddle'){panel.innerHTML=`<p class="small">the flowers whisper, in unison</p><h1 class="big" id="q">${riddle.q}</h1><div class="row"><button id="speak">Answer by voice</button><input id="txt" type="text" placeholder="…or type the answer"><button id="send" class="ghost">Answer</button></div><div class="row" style="margin-top:10px"><button id="again" class="ghost">Hear it again</button><button id="hint" class="ghost">Hint</button></div><p class="small" id="fb">&nbsp;</p>`;
+  const txt=$('#txt');const handle=(t,alts)=>{if(!norm(t)){toast('Say or type an answer first.');return;}txt.value=t;checkAnswer(t,alts||[t]);};$('#speak').onclick=()=>listen($('#speak'),handle,()=>{});$('#send').onclick=()=>handle(txt.value);bindEnter(txt,handle);$('#again').onclick=()=>say(riddle.q);$('#hint').onclick=()=>{$('#fb').textContent='Hint: '+riddle.hint;say(riddle.hint);};}
+ else if(stage==='bloom'){panel.innerHTML=`<h1>Everything blooms.</h1><p>Stars are falling and the flowers have faces now. They want to rap. With you.</p><div class="row"><button id="go">Start the karaoke</button></div><p class="small">Boom-bap, 90 BPM, sixteen bars. Rap the glowing line along with them. The garden is listening and keeping score.</p>`;$('#go').onclick=startKaraoke;}
+ else if(stage==='karaoke'){panel.innerHTML=`<p class="small" id="bar">here we go…</p><div id="lyric">&nbsp;</div><div id="lyricNext">&nbsp;</div><p class="small"><span class="dot"></span>the flowers are listening to you</p>`;}
+ else if(stage==='score'){const r=finalScore();const v=VERDICTS.find(x=>r.score>=x[0]);panel.innerHTML=`<p class="small">the garden has judged you</p><div class="score">${r.score}<span style="font-size:28px;opacity:.7">/100</span></div><h1>${v[1]}</h1><p>${v[2]}</p><p class="small">voice on the beat ${Math.round(r.activity*100)}% · pitch control ${Math.round(r.pitchCtl*100)}% · timing ${Math.round(r.timing*100)}%</p><div class="row" style="margin-top:14px"><button id="rap">Rap it again</button><button id="again" class="ghost">New night, new riddle</button></div>`;
+  $('#rap').onclick=startKaraoke;$('#again').onclick=()=>location.reload();say(`${r.score} out of 100. ${v[1]} ${v[2]}`);}
+}
+function wake(){if(stage!=='sing')return;stage='waking';stopHum();wakeChord();toast('The flowers heard you.');flowers.forEach(f=>{f.targetLean=0.28;f.wobble=0.3;});setTimeout(()=>setStage('yourRiddle'),1700);}
+function judgeRiddle(t){const fb=$('#fb');if(likesRiddle(t)){giggle();fb.textContent='They love it. Giggling. Now listen…';flowers.forEach(f=>f.targetLean=0.1);setTimeout(()=>{riddle=pickRiddle();wrong=0;setStage('theirRiddle');say(riddle.q);},1500);}
+ else{sadTone();fb.textContent='The tulips are unimpressed. Make it a question, or make it longer and stranger.';say('Hmm. The tulips want a better one.');}}
+function pickRiddle(){let free=RIDDLES.map((_,i)=>i).filter(i=>!usedRiddles.includes(i));if(!free.length){usedRiddles=[];free=RIDDLES.map((_,i)=>i);}const i=free[Math.floor(Math.random()*free.length)];usedRiddles.push(i);return RIDDLES[i];}
+function checkAnswer(t,alts){const fb=$('#fb');const ok=alts.some(a=>matches(a,riddle.a));
+ if(ok){sparkle();fb.textContent='Yes!';stage='blooming';say(riddle.yes).then(()=>{});setTimeout(bloom,900);}
+ else{wrong++;sadTone();const lines=['Nope. The daisies snorted.','Not that. Try again, clever one.','Closer? No. Not closer.'];const m=lines[Math.min(wrong-1,2)];fb.textContent=m+(wrong>=2?' Hint: '+riddle.hint:'');say(m+(wrong>=2?' '+riddle.hint:''));}}
+function bloom(){raining=true;rain.visible=true;flowers.forEach((f,i)=>{setTimeout(()=>{f.targetOpen=1;f.wobble=0.4;},i*90);setTimeout(()=>{f.face.visible=true;f.halo.material.opacity=0.55;},900+i*70);});setStage('bloom');}
+function startKaraoke(){K={lines:[]};lineIdx=-1;karaokeDone=false;flowers.forEach(f=>f.targetLean=0);setStage('karaoke');startBeat();}
+function karaokeTick(){const el=actx.currentTime-beatStart;const lyric=$('#lyric'),next=$('#lyricNext'),bar=$('#bar');if(!lyric)return;
+ if(el<0){lyric.textContent='3… 2… 1…';return;}
+ const li=Math.floor(el/BAR);
+ if(li>=LYRICS.length){if(!karaokeDone){karaokeDone=true;speechSynthesis.cancel();setTimeout(()=>setStage('score'),600);}return;}
+ if(li!==lineIdx){lineIdx=li;lyric.textContent=LYRICS[li];next.textContent=LYRICS[li+1]||'…and that is the show';bar.textContent=`bar ${li+1} / ${LYRICS.length}`;speechSynthesis.cancel();say(LYRICS[li],{rate:1.5,pitch:1.0,max:BAR*1000});flowers.forEach(f=>f.wobble=(li%2?1:-1)*0.25);}}
+function scoreTick(rms){if(!K||stage!=='karaoke')return;const el=actx.currentTime-beatStart;if(el<0)return;const li=Math.floor(el/BAR);if(li>=LYRICS.length)return;
+ const L=K.lines[li]||(K.lines[li]={frames:0,voiced:0,onset:null,pitchHits:0,lastPitch:0});L.frames++;
+ if(rms>0.02){L.voiced++;if(L.onset===null)L.onset=el-li*BAR;}
+ if(pitch>0&&rms>0.02){if(L.lastPitch&&Math.abs(pitch-L.lastPitch)/L.lastPitch<0.12)L.pitchHits++;L.lastPitch=pitch;}}
+function finalScore(){if(!K)return{score:0,activity:0,pitchCtl:0,timing:0};const N=LYRICS.length;let act=0,pc=0,tm=0;
+ for(let i=0;i<N;i++){const L=K.lines[i];if(!L||!L.frames)continue;const vr=L.voiced/L.frames;act+=Math.min(1,vr/0.5);if(L.voiced>5)pc+=Math.min(1,(L.pitchHits/L.voiced)/0.45);if(L.onset!==null)tm+=Math.max(0,1-Math.abs(L.onset-0.25)/1.3);}
+ const activity=act/N,pitchCtl=pc/N,timing=tm/N;return{score:Math.max(0,Math.min(100,Math.round(45*activity+25*pitchCtl+30*timing))),activity,pitchCtl,timing};}
+
+/* ---------------- LOOP ---------------- */
+const clock=new THREE.Clock();let t=0;
+function audioTick(){if(!analyser)return;analyser.getFloatTimeDomainData(timeBuf);let s=0;for(let i=0;i<timeBuf.length;i++)s+=timeBuf[i]*timeBuf[i];const rms=Math.sqrt(s/timeBuf.length);
+ level+=(Math.min(1,rms*6)-level)*0.25;meterBar.style.width=(level*100)+'%';
+ if((acFrame++&1)===0){const p=autoCorrelate(timeBuf,actx.sampleRate);pitch=(p>70&&p<1200)?p:-1;}
+ if(pitch>0)pitchSmooth=pitchSmooth?pitchSmooth+(pitch-pitchSmooth)*0.3:pitch;
+ const voiced=rms>0.02&&pitch>0;
+ if(stage==='sing'){if(voiced){humFollow(quantize(pitchSmooth),Math.min(0.4,0.12+level*0.5));voicedTime+=1/60;const n=Math.min(5,Math.floor(voicedTime/0.5));const prog=$('#prog');if(prog)prog.textContent=('✦ '.repeat(n)+'✧ '.repeat(5-n)).trim();if(voicedTime>=2.5)wake();}else humFollow(pitchSmooth||220,0);}
+ if(stage==='karaoke'){scoreTick(rms);karaokeTick();}
+ return rms;}
+function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),0.05);t+=dt;audioTick();
+ const pos=starGeo.attributes.position.array;for(let i=0;i<STAR_N;i++){pos[i*3]+=Math.sin(t*0.3+sphase[i])*0.005;pos[i*3+1]+=Math.cos(t*0.25+sphase[i])*0.003;}starGeo.attributes.position.needsUpdate=true;
+ starMat.size=0.32+Math.sin(t*2)*0.05+level*0.5;
+ if(raining){const r=rainGeo.attributes.position.array;for(let i=0;i<RAIN_N;i++){r[i*3+1]-=rv[i]*dt;r[i*3]+=Math.sin(t*2+i)*0.01;if(r[i*3+1]<0.3){r[i*3+1]=10+Math.random()*14;r[i*3]=(Math.random()-0.5)*18;}}rainGeo.attributes.position.needsUpdate=true;}
+ let pulse=0,beatIdx=0;if(stage==='karaoke'&&actx){const el=actx.currentTime-beatStart;if(el>0){const bp=(el/BEAT)%1;pulse=Math.pow(1-bp,3);beatIdx=Math.floor(el/(BEAT/2));}}
+ flowers.forEach((f,i)=>{f.open+=(f.targetOpen-f.open)*0.04;f.lean+=(f.targetLean-f.lean)*0.05;f.wobble*=0.93;
+  const sway=Math.sin(t*1.3+f.phase)*(0.035+level*0.35)+f.wobble*Math.sin(t*18);
+  f.g.rotation.z=sway;f.g.rotation.x=f.lean+Math.sin(t*0.9+f.phase)*0.02;
+  f.hinges.forEach(h=>{h.rotation.x=0.12+f.open*1.05;});
+  const pk=1+pulse*0.18*f.open;f.head.scale.set(pk,pk,pk);f.head.rotation.z=stage==='karaoke'?Math.sin(t*4.7+i)*0.18:0;
+  if(f.face.visible){f.face.material.map=(stage==='karaoke'&&(beatIdx+i)%2===0)?faceOpen:faceSmile;f.halo.material.opacity=0.35+pulse*0.4+level*0.3;}});
+ dogs.forEach((d,k)=>{const singing=level>0.12;const rap=stage==='karaoke'&&pulse>0;
+  d.tail.rotation.y=Math.sin(t*(singing||rap?16:5)+d.phase)*(0.25+level*0.6);
+  d.head.rotation.z=singing?Math.sin(t*2.2+d.phase)*0.3*Math.min(1,level*2):d.head.rotation.z*0.9;
+  d.head.rotation.x=singing?-0.2:0;d.ears.forEach(e=>{e.rotation.x=singing?-0.35:0;});
+  if(rap){const el=actx.currentTime-beatStart;d.g.position.y=d.baseY+pulse*0.45;d.g.rotation.y=d.facing+Math.sin(el*Math.PI/BEAT*(k?1:-1))*0.6;d.legs.forEach((l,i)=>l.rotation.x=Math.sin(t*14+i*Math.PI/2)*0.6);d.g.position.x=d.x+Math.sin(el*Math.PI/BAR)*(k?-1:1)*1.2;}
+  else{d.g.position.y=d.baseY+(singing?Math.abs(Math.sin(t*6))*0.15*level:0);d.g.rotation.y+=(d.facing-d.g.rotation.y)*0.05;d.g.position.x+=(d.x-d.g.position.x)*0.05;d.legs.forEach(l=>l.rotation.x*=0.9);}
+  if(stage==='bloom'){d.g.position.y=d.baseY+Math.abs(Math.sin(t*5+k))*0.5;}});
+ camera.position.x=Math.sin(t*0.15)*0.9;camera.position.y=2.4+Math.sin(t*0.2)*0.15;camera.lookAt(0,1.15,0);
+ renderer.render(scene,camera);}
+render();animate();
+</script>
+</body>
+</html>
